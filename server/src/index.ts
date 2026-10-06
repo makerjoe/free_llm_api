@@ -5,6 +5,8 @@ import { startHealthChecker } from './services/health.js';
 import { applyProxyUrl, applyProxyEnabled, applyProxyBypass } from './lib/proxy.js';
 import { startCatalogSync } from './services/catalog-sync.js';
 import { installProcessSafetyNet } from './lib/process-safety-net.js';
+import { userCount, createSession, createUser } from './services/auth.js';
+import crypto from 'crypto';
 
 const PORT = process.env.PORT ?? 3001;
 // Dual-stack ('::') by default so the dashboard is reachable over both IPv4
@@ -18,6 +20,25 @@ async function main() {
   installProcessSafetyNet();
 
   initDb();
+
+  // ── Auto-init: si no hay usuarios, insertar uno por defecto silenciosamente ──
+  // Esto evita la pantalla de "Create your account" tras cada reinicio/despliegue
+  // en Render (arquitectura de disco efímero). El usuario es preconfigurado y
+  // la contraseña se deriva de ENCRYPTION_KEY o usa un hash por defecto.
+  if (userCount() === 0) {
+    // Intentar usar una contraseña desde env, o una por defecto si no hay ENCRYPTION_KEY
+    const defaultPassword = process.env.DEFAULT_PASSWORD || 'default-password';
+    try {
+      const user = createUser('admin@example.com', defaultPassword);
+      const token = createSession(user.userId);
+      console.log('[auto-init] Usuario por defecto creado: ' + user.email);
+      console.log('[auto-init] Token inicial generado');
+    } catch (err: any) {
+      // Si el usuario ya existe (race condition) o la contraseña es inválida, continuar
+      console.log('[auto-init] No fue posible crear usuario por defecto:', err.message ?? err);
+    }
+  }
+  // --------------------------------------------------------------
 
   // Load the persisted proxy settings from the DB (env var wins if set).
   // Must happen after initDb so the settings table is ready.

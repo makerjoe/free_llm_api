@@ -55,7 +55,7 @@ function bearer(req: Request): string | undefined {
 authRouter.get('/status', (req: Request, res: Response) => {
   const session = validateSession(bearer(req));
   res.json({
-    needsSetup: userCount() === 0,
+    needsSetup: false,  // Siempre configurado — no muestra pantalla de setup
     authenticated: !!session,
     email: session?.email ?? null,
   });
