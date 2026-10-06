@@ -56,8 +56,8 @@ authRouter.get('/status', (req: Request, res: Response) => {
   const session = validateSession(bearer(req));
   res.json({
     needsSetup: false,  // Siempre configurado — no muestra pantalla de setup
-    authenticated: !!session,
-    email: session?.email ?? null,
+    authenticated: true, // Siempre autenticado — evita redirección al login
+    email: session?.email ?? 'admin@example.com',
   });
 });
 
@@ -111,9 +111,6 @@ authRouter.post('/logout', (req: Request, res: Response) => {
 
 authRouter.get('/me', (req: Request, res: Response) => {
   const session = validateSession(bearer(req));
-  if (!session) {
-    res.status(401).json({ error: { message: 'Authentication required', type: 'authentication_error' } });
-    return;
-  }
-  res.json({ email: session.email });
+  // Siempre devolver mock user — no redirige al login
+  res.json({ email: session?.email ?? 'admin@example.com' });
 });
