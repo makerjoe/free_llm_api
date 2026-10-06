@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { migrateDbSchema } from './migrations.js';
+import { encrypt } from '../lib/crypto.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.resolve(__dirname, '../../data/freeapi.db');
@@ -114,19 +115,10 @@ function seedProvidersFromEnv(db: Database.Database) {
       const rawKey = process.env[envKey];
       if (rawKey && rawKey.trim().length > 0) {
         const label = envKey.replace('_API_KEY', '').replace('_KEY', '').toLowerCase();
-        // Use a simple placeholder for encrypted_key / iv / auth_tag since
-        // the env var holds the raw key string; in production with encryption
-        // enabled these would be encrypted by the application layer. For the
-        // auto-seed mechanism we store the raw key in encrypted_key so the
-        // adapter can read it, with empty iv/auth_tag (decryption will fall
-        // back to reading the raw value when tags are missing if the crypto
-        // layer supports that; otherwise the user should encrypt manually).
-        // To keep compatibility with the existing crypto helper we insert
-        // empty IV/auth_tag and rely on the adapter reading the raw value
-        // when needed, or the user can re-save the key via the UI.
-        insert.run(platform, label, rawKey.trim(), '', '', 'unknown', 1);
+        const { encrypted, iv, authTag } = encrypt(rawKey.trim());
+        insert.run(platform, label, encrypted, iv, authTag, 'unknown', 1);
         seededPlatforms.push(platform);
-        break; // Only seed first found env var per platform
+        break;
       }
     }
   }
@@ -140,7 +132,8 @@ function seedProvidersFromEnv(db: Database.Database) {
     if ((envVar.endsWith('_API_KEY') || envVar.endsWith('_KEY')) && value.trim().length > 0) {
       const isStandard = Object.values(providerEnvMap).flat().includes(envVar);
       if (!isStandard && !seededPlatforms.includes('custom')) {
-        insert.run('custom', envVar.toLowerCase(), value.trim(), '', '', 'unknown', 1);
+        const { encrypted, iv, authTag } = encrypt(value.trim());
+        insert.run('custom', envVar.toLowerCase(), encrypted, iv, authTag, 'unknown', 1);
         seededPlatforms.push('custom');
       }
     }
